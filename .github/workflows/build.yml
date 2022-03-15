@@ -184,10 +184,10 @@ jobs:
 
     - name: Verify tools
       run: |
-      export PATH=${{ steps.build-test.outputs.bin_path }}:$PATH
+        export PATH=${{ steps.build-test.outputs.bin_path }}:$PATH
 
-      echo "+ ectrans --info"
-      ectrans --info
+        echo "+ ectrans --info"
+        ectrans --info
 
 #    - name: Codecov Upload
 #      if: steps.build-test.outputs.coverage_file
