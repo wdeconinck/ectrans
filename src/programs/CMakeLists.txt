@@ -22,7 +22,7 @@ if( HAVE_TOOLS )
 
     ecbuild_add_executable(TARGET ${_program}
       SOURCES ${_program}.F90
-      LIBS ${trans}
+      LIBS ${trans} ectrans_init_spherical_harmonic
       LINKER_LANGUAGE Fortran
       DEFINITIONS ECTRANS_TOOLS_RTABLE_PATH="${ECTRANS_TOOLS_RTABLE_PATH}" )
 
