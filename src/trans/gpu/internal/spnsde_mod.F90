@@ -97,8 +97,8 @@ REAL(KIND=JPRBT) :: ZN(-1:R%NTMAX+4)
 !$ACC&      PRESENT (F_RN,ZIA)
 #endif
 #ifdef OMPGPU
-!$OMP TARGET DATA                             &
-!$OMP&      MAP(PRESENT,ALLOC:ZN,ZZEPSNM)         &
+!$OMP TARGET DATA                             
+!$OMP      MAP(PRESENT,ALLOC:ZN,ZZEPSNM)         &
 !$OMP&      MAP(PRESENT,ALLOC:F_RN)   &
 !$OMP&      MAP(PRESENT,ALLOC: ZIA)
 #endif

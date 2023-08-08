@@ -50,12 +50,12 @@ ecbuild_list_exclude_pattern( LIST trans_src            REGEX dilatation_mod.F90
   ecbuild_info("warn: special compile flags ftdir_mod.F90")
 #endif()
 
-ectrans_declare_hip_sources( SOURCES_GLOB 
-  sharedmem/*.hip.cpp
-  algor/*.hip.cpp
-  internal/*.hip.cpp
-  external/*.hip.cpp
-)
+#ectrans_declare_hip_sources( SOURCES_GLOB 
+#  sharedmem/*.hip.cpp
+#  algor/*.hip.cpp
+#  internal/*.hip.cpp
+#  external/*.hip.cpp
+#)
 
 foreach( prec dp sp )
   if( HAVE_${prec} )
@@ -75,11 +75,13 @@ foreach( prec dp sp )
                            $<INSTALL_INTERFACE:include>
           PUBLIC_LIBS      parkind_${prec}
                            fiat
-          PRIVATE_LIBS     ${ECTRANS_GPU_HIP_LIBRARIES}
+          PRIVATE_LIBS     CUDA::cufft
+	                   CUDA::cublas
                            ${LAPACK_LIBRARIES} # we still have symbols in some files
                            $<${HAVE_ACC}:OpenACC::OpenACC_Fortran>
                            $<${HAVE_OMP}:OpenMP::OpenMP_Fortran>
                            $<${HAVE_GPU_AWARE_MPI}:MPI::MPI_Fortran MPI::MPI_CXX>
+			   nvhpcwrapnvtx
           PRIVATE_DEFINITIONS
 	                   ${GPU_OFFLOAD}GPU
 	                   $<${HAVE_GPU_AWARE_MPI}:USE_CUDA_AWARE_MPI_FT>

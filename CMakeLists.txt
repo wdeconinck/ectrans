@@ -74,24 +74,24 @@ ecbuild_add_option( FEATURE TRANSI
                     CONDITION HAVE_DOUBLE_PRECISION AND HAVE_CPU )
 
 set( HIP_REQUESTED OFF )
-if( ECTRANS_ENABLE_GPU OR (NOT DEFINED ECTRANS_ENABLE_GPU AND ENABLE_GPU))
-  set( HIP_REQUESTED ON )
-endif()
-
-if( HIP_REQUESTED )
-  ectrans_find_hip() # sets "HAVE_HIP"
-endif()           
+#if( ECTRANS_ENABLE_GPU OR (NOT DEFINED ECTRANS_ENABLE_GPU AND ENABLE_GPU))
+#  set( HIP_REQUESTED ON )
+#endif()
+#if( HIP_REQUESTED )
+#  ectrans_find_hip() # sets "HAVE_HIP"
+#endif()           
 
 ecbuild_add_option( FEATURE GPU
                     DEFAULT OFF
-                    DESCRIPTION "Compile GPU version of ectrans (Requires OpenACC or sufficient OpenMP offloading support and MPI)"
-                    CONDITION HAVE_HIP )
+                    DESCRIPTION "Compile GPU version of ectrans (Requires OpenACC or sufficient OpenMP offloading support and MPI)" )
+#                    CONDITION HIP_REQUESTED )
 
 ecbuild_add_option( FEATURE ACC
                     DEFAULT ON
                     DESCRIPTION "Support for using GPUs with OpenACC"
-                    REQUIRED_PACKAGES "OpenACC COMPONENTS Fortran"
+		    REQUIRED_PACKAGES "OpenACC COMPONENTS Fortran"
                     CONDITION HAVE_GPU)
+
 if( HAVE_GPU )
   if( HAVE_ACC )
     set( GPU_OFFLOAD "ACC" )
@@ -121,6 +121,36 @@ endif()
 ecbuild_add_option( FEATURE GPU_STATIC
                     DEFAULT ${GPU_STATIC_DEFAULT}
                     DESCRIPTION "Compile GPU library as static library")
+
+if( HAVE_GPU AND CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC" )
+  enable_language( CUDA )
+  find_package(CUDAToolkit)
+                    
+  if( NOT CMAKE_CUDA_COMPILER)
+    ecbuild_info("No CUDA compiler found")
+  endif()                
+  if( NOT TARGET CUDA::cublas )
+    ecbuild_info("No target CUDA::cublas")
+  endif()
+  if( NOT TARGET CUDA::cufft )
+    ecbuild_info("No target CUDA::cufft")
+  endif()
+  if( NOT TARGET OpenACC::OpenACC_Fortran )
+    ecbuild_info("No target OpenACC:OpenACC_Fortran")
+  endif()
+  if( NOT TARGET MPI::MPI_Fortran )
+    ecbuild_info("No target MPI::MPI_Fortran")
+  endif()
+  if( NOT TARGET MPI::MPI_C )
+    ecbuild_info("No target MPI::MPI_C")
+  endif()
+  if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+    set(CMAKE_CUDA_ARCHITECTURES 80)
+  endif()
+  ecbuild_info( "cublas                  : [${CUDA_cublas_LIBRARY}]" )
+  ecbuild_info( "cufft                   : [${CUDA_cufft_LIBRARY}]" )
+  ecbuild_info( "cuda arch               : [${CMAKE_CUDA_ARCHITECTURES}]" )
+endif()
 
 ectrans_find_lapack()
 
