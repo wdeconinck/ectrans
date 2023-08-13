@@ -49,6 +49,8 @@ foreach( program ectrans-benchmark ectrans-benchmark-ifs )
 
   if( HAVE_GPU )
     foreach( prec dp sp )
+
+
       if( HAVE_${prec} )
             ecbuild_add_executable( TARGET  ${program}-gpu-${prec}
                                     SOURCES ${program}.F90
@@ -57,6 +59,7 @@ foreach( program ectrans-benchmark ectrans-benchmark-ifs )
                                       fiat
                                       parkind_${prec}
                                       trans_gpu_${prec}
+				      OpenACC::OpenACC_Fortran
             )
        endif()
     endforeach( prec )

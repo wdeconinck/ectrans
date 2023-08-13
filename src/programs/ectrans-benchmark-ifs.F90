@@ -687,21 +687,25 @@ do jstep = 1, iters
     write(nout,*) 'Statistics vorticity level= ',jf,' : ave,min,max ',zave(jf),zmin(jf),zmax(jf)
     call flush(nout)
     enddo
+    ! first scalar
+    ifld=1
     call gpnorm_trans(zgp3a(:,1:nflevg,ifld,:),nflevg,nproma,zave,zmin,zmax,.false.,1)
     do jf=1,nflevg
     write(nout,*) 'Statistics scalar level= ',jf,' : ave,min,max ',zave(jf),zmin(jf),zmax(jf)
     call flush(nout)
     enddo
-    call gpnorm_trans(zgp3a(:,1:nflevg,ifld+nfld,:),nflevg,nproma,zave,zmin,zmax,.false.,1)
+    if ( lscders ) then
+    call gpnorm_trans(zgp3a(:,1:nflevg,ifld+1,:),nflevg,nproma,zave,zmin,zmax,.false.,1)
     do jf=1,nflevg
     write(nout,*) 'Statistics scalar x-der level= ',jf,' : ave,min,max ',zave(jf),zmin(jf),zmax(jf)
     call flush(nout)
     enddo
-    call gpnorm_trans(zgp3a(:,1:nflevg,ifld+2*nfld,:),nflevg,nproma,zave,zmin,zmax,.false.,1)
+    call gpnorm_trans(zgp3a(:,1:nflevg,ifld+2,:),nflevg,nproma,zave,zmin,zmax,.false.,1)
     do jf=1,nflevg
     write(nout,*) 'Statistics scalar y-der level= ',jf,' : ave,min,max ',zave(jf),zmin(jf),zmax(jf)
     call flush(nout)
     enddo
+    endif
     deallocate(zave)
     deallocate(zmin)
     deallocate(zmax)
@@ -791,18 +795,20 @@ do jstep = 1, iters
       & kvsetsc2=ivsetsc,                   &
       & kvsetsc3a=ivset)
   else
+    ! needs thought, trans like in postprocessing
+    !call dir_trans(kresol=1, kproma=nproma, &
+    !   & pgp=zgp3a(:,1:nflevg,1:nfld,:),              &
+    !   & pspscalar=zspsc3a(1:nflevl,1:nfld,:), & ! spectral scalar
+    !   & kvsetsc=ivset)
     call dir_trans(kresol=1, kproma=nproma, &
-       & pgp=zgp3a(:,1,1:nfld,:),              &
-       & pspscalar=zspsc3a(1:1,1:nfld,1), & ! spectral scalar
-       & kvsetsc=ivset)
-!    call dir_trans(kresol=1, kproma=nproma, &
-!      & pgp2=zgmvs(:,1:1,:),                &
-!      & pgp3a=zgp3a(:,:,1:nfld,:),          &
-!      & pspsc2=zspsc2,                      &
-!      & pspsc3a=zspsc3a,                    &
-!      & kvsetsc2=ivsetsc,                   &
-!      & kvsetsc3a=ivset)
+      & pgp2=zgmvs(:,1:1,:),                &
+      & pgp3a=zgp3a(:,:,1:nfld,:),          &
+      & pspsc2=zspsc2,                      &
+      & pspsc3a=zspsc3a,                    &
+      & kvsetsc2=ivsetsc,                   &
+      & kvsetsc3a=ivset)
   endif
+
   call gstats(5,1)
   ztstep2(jstep) = (timef() - ztstep2(jstep))/1000.0_jprd
 
@@ -835,8 +841,10 @@ do jstep = 1, iters
     call specnorm(pspec=zspdiv(1:nflevl,:),    pnorm=znormdiv, kvset=ivset(1:nflevg))
     call specnorm(pspec=zspsc3a(1:nflevl,:,1), pnorm=znormt,   kvset=ivset(1:nflevg))
 
+    if( myproc == 1 ) then
+
     ! Surface pressure
-    zmaxerr(:) = -999.0
+    zmaxerr(:) = -999.0_jprb
     do ifld = 1, 1
       zerr(1) = abs(znormsp1(ifld)/znormsp(ifld) - 1.0_jprb)
       zmaxerr(1) = max(zmaxerr(1), zerr(1))
@@ -860,10 +868,13 @@ do jstep = 1, iters
                 & " | zspdiv max err="e10.3," | zspsc3a max err="e10.3," | zspsc2 max err="e10.3)') &
                 &  jstep, ztstep(jstep), zmaxerr(3), zmaxerr(2), zmaxerr(4), zmaxerr(1)
     call gstats(6,1)
+    endif
   else
     write(nout,'("Time step ",i6," took", f8.4)') jstep, ztstep(jstep)
   endif
   call gstats(3,1)
+  call flush(nout)
+
 enddo
 
 !===================================================================================================
@@ -873,12 +884,15 @@ ztloop = (timef() - ztloop)/1000.0_jprd
 write(nout,'(" ")')
 write(nout,'(a)') '======= End of spectral transforms  ======='
 write(nout,'(" ")')
+call flush(nout)
 
 if (lprint_norms .or. ncheck > 0) then
-  call specnorm(pspec=zspvor(1:nflevl,:),    pnorm=znormvor, kvset=ivset)
-  call specnorm(pspec=zspdiv(1:nflevl,:),    pnorm=znormdiv, kvset=ivset)
-  call specnorm(pspec=zspsc3a(1:nflevl,:,1), pnorm=znormt,   kvset=ivset)
-  call specnorm(pspec=zspsc2(1:1,:),         pnorm=znormsp,  kvset=ivsetsc)
+  call specnorm(pspec=zspvor(1:nflevl,:),    pnorm=znormvor, kvset=ivset(1:nflevg))
+  call specnorm(pspec=zspdiv(1:nflevl,:),    pnorm=znormdiv, kvset=ivset(1:nflevg))
+  call specnorm(pspec=zspsc3a(1:nflevl,:,1), pnorm=znormt,   kvset=ivset(1:nflevg))
+  call specnorm(pspec=zspsc2(1:1,:),         pnorm=znormsp,  kvset=ivsetsc(1:1))
+
+  if( myproc == 1 ) then
 
   zmaxerr(:) = -999.0
   do ifld = 1, nflevg
@@ -886,6 +900,7 @@ if (lprint_norms .or. ncheck > 0) then
     zmaxerr(3) = max(zmaxerr(3), zerr(3))
     if (verbosity >= 1) then
       write(nout,'("norm zspvor( ",i4,")     = ",f20.15,"        error = ",e10.3)') ifld, znormvor1(ifld), zerr(3)
+      call flush(nout)
     endif
   enddo
   do ifld = 1, nflevg
@@ -893,6 +908,7 @@ if (lprint_norms .or. ncheck > 0) then
     zmaxerr(2) = max(zmaxerr(2),zerr(2))
     if (verbosity >= 1) then
       write(nout,'("norm zspdiv( ",i4,",:)   = ",f20.15,"        error = ",e10.3)') ifld, znormdiv1(ifld), zerr(2)
+      call flush(nout)
     endif
   enddo
   do ifld = 1, nflevg
@@ -900,6 +916,7 @@ if (lprint_norms .or. ncheck > 0) then
     zmaxerr(4) = max(zmaxerr(4), zerr(4))
     if (verbosity >= 1) then
       write(nout,'("norm zspsc3a(",i4,",:,1) = ",f20.15,"        error = ",e10.3)') ifld, znormt1(ifld), zerr(4)
+      call flush(nout)
     endif
   enddo
   do ifld = 1, 1
@@ -907,6 +924,7 @@ if (lprint_norms .or. ncheck > 0) then
     zmaxerr(1) = max(zmaxerr(1), zerr(1))
     if (verbosity >= 1) then
       write(nout,'("norm zspsc2( ",i4,",:)   = ",f20.15,"        error = ",e10.3)') ifld, znormsp1(ifld), zerr(1)
+      call flush(nout)
     endif
   enddo
 
@@ -921,6 +939,8 @@ if (lprint_norms .or. ncheck > 0) then
   write(nout,*)
   write(nout,'("max error combined =          = ",e10.3)') zmaxerrg
   write(nout,*)
+
+  endif
 
   if (ncheck > 0 .and. myproc == 1) then
     ! If the maximum spectral norm error across all fields is greater than 100 times the machine

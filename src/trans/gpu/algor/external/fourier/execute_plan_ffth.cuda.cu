@@ -1,4 +1,4 @@
-#define cufftSafeCall(err) __hipfftSafeCall(err, __FILE__, __LINE__)
+#define cufftSafeCall(err) __fftSafeCall(err, __FILE__, __LINE__)
 //#include "cuda/cuda_runtime.h"
 #include "cufft.h"
 #include "stdio.h"
@@ -13,7 +13,7 @@ typedef cufftDoubleReal CUDA_DATA_TYPE_REAL;
 #endif
 
 
-    static const char *_hipGetErrorEnum(cufftResult error)
+    static const char *_cudaGetErrorEnum(cufftResult error)
     {
     switch (error)
     {
@@ -47,7 +47,7 @@ typedef cufftDoubleReal CUDA_DATA_TYPE_REAL;
     case CUFFT_UNALIGNED_DATA:
     return "CUFFT_UNALIGNED_DATA";
 
-    /*case CUFFT_INCOMPLETE_PARAMETER_LIST:
+    case CUFFT_INCOMPLETE_PARAMETER_LIST:
     return "CUFFT_INCOMPLETE_PARAMETER_LIST";
 
     case CUFFT_INVALID_DEVICE:
@@ -63,23 +63,20 @@ typedef cufftDoubleReal CUDA_DATA_TYPE_REAL;
     return "CUFFT_NOT_IMPLEMENTED";
 
     case CUFFT_NOT_SUPPORTED:
-    return "CUFFT_NOT_SUPPORTED";*/
+    return "CUFFT_NOT_SUPPORTED";
     }
 
     return "<unknown>";
     }
 
-    inline void __hipfftSafeCall(cufftResult err, const char *file, const int line)
+    inline void __fftSafeCall(cufftResult err, const char *file, const int line)
     {
     if( CUFFT_SUCCESS != err) {
     fprintf(stderr, "CUFFT error at 1\n");
     fprintf(stderr, "CUFFT error in file '%s'\n",__FILE__);
     fprintf(stderr, "CUFFT error at 2\n");
-    /*fprintf(stderr, "CUFFT error line '%s'\n",__LINE__);*/
     fprintf(stderr, "CUFFT error at 3\n");
-    /*fprintf(stderr, "CUFFT error in file '%s', line %d\n %s\nerror %d: %s\nterminating!\n",__FILE__, __LINE__,err, \
-    _hipGetErrorEnum(err)); \*/
-    fprintf(stderr, "CUFFT error %d: %s\nterminating!\n",err,_hipGetErrorEnum(err)); \
+    fprintf(stderr, "CUFFT error %d: %s\nterminating!\n",err,_cudaGetErrorEnum(err)); \
     cudaDeviceReset(); return; \
     }
     }
@@ -104,18 +101,16 @@ __global__ void debugFloat(int varId, int N, CUDA_DATA_TYPE_REAL *x) {
         if (varId == 1) printf("GPU: output[%d]=%2.4f\n",i+1,a);
     }}
 
-/*extern "C" {
 
-void execute_plan_ffth_c_(int ISIGNp, int N, DATA_TYPE *data_in_host, DATA_TYPE *data_out_host, long *iplan)
-*/void cudafunction(int ISIGNp, int N, DATA_TYPE *data_in_host, DATA_TYPE *data_out_host, long *iplan)
+void cudafunction(int ISIGNp, int N, DATA_TYPE *data_in_host, DATA_TYPE *data_out_host, long *iplan)
 {
 CUDA_DATA_TYPE_COMPLEX *data_in = reinterpret_cast<CUDA_DATA_TYPE_COMPLEX*>(data_in_host);
 CUDA_DATA_TYPE_COMPLEX *data_out = reinterpret_cast<CUDA_DATA_TYPE_COMPLEX*>(data_out_host);
 cufftHandle* PLANp = reinterpret_cast<cufftHandle*>(iplan);
-//fprintf(stderr, "execute_plan_ffth_c_: plan-address = %p\n",PLANp);
-//abort();
 cufftHandle plan = *PLANp;
 int ISIGN = ISIGNp;
+
+//fprintf(stderr, "execute_plan_ffth_c_: transform=%d plan-address = %p\n",ISIGN, plan);
 
 // Check variables on the GPU:
 /*int device_count = 0;
@@ -132,10 +127,20 @@ for (int i = 0; i < device_count; ++i) {
 }*/
 
 if( ISIGN== -1 ){
-  cufftSafeCall(cufftExecR2C(plan, (cufftReal*)data_in, (cufftComplex*)data_out));
+  //fprintf(stderr, "Cuda: calling R2C\n");
+#ifdef TRANS_SINGLE
+  cufftSafeCall(cufftExecR2C(plan, (CUDA_DATA_TYPE_REAL*)data_in, data_out));
+#else
+  cufftSafeCall(cufftExecD2Z(plan, (CUDA_DATA_TYPE_REAL*)data_in, data_out));
+#endif
 }
 else if( ISIGN== 1){
-  cufftSafeCall(cufftExecC2R(plan, (cufftComplex*)data_in, (cufftReal*)data_out));
+  //fprintf(stderr, "Cuda: calling C2R\n");
+#ifdef TRANS_SINGLE
+  cufftSafeCall(cufftExecC2R(plan, data_in, (CUDA_DATA_TYPE_REAL*)data_out));
+#else
+  cufftSafeCall(cufftExecZ2D(plan, data_in, (CUDA_DATA_TYPE_REAL*)data_out));
+#endif
 }
 else {
   abort();
@@ -154,6 +159,4 @@ cudaDeviceSynchronize();
 //	return;	
 //}
 
-
 }
-//}

@@ -8,6 +8,9 @@
 
 ## Apply workarounds for some known compilers
 
+#on Leonardo the file mpi.mod is unfortunately only in the lib directory , Nils
+include_directories(/leonardo/prod/spack/03/install/0.19/linux-rhel8-icelake/nvhpc-23.1/openmpi-4.1.4-6ek2oqarjw755glr5papxirjmamqwvgd/lib)
+
 if(CMAKE_Fortran_COMPILER_ID MATCHES "NVHPC")
 
   # Compile setup_trans with pinned memory to improve data movement performance. 
