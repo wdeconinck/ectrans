@@ -90,6 +90,13 @@ foreach( prec dp sp )
 	                   $<${HAVE_GPU_AWARE_MPI}:USE_CUDA_AWARE_MPI_FT>
 			   $<${HAVE_GPU_REDUCED_MEMORY}:REDUCED_MEM>
         )
+        if( HAVE_ACC AND CMAKE_Fortran_COMPILER_ID MATCHES NVHPC )
+	    # Propagate flags as link options for downstream targets. Only required for NVHPC
+	    target_link_options( trans_gpu_${prec} INTERFACE
+              $<$<LINK_LANGUAGE:Fortran>:SHELL:${OpenACC_Fortran_FLAGS}>
+              $<$<LINK_LANG_AND_ID:C,NVHPC>:SHELL:${OpenACC_Fortran_FLAGS}>
+              $<$<LINK_LANG_AND_ID:CXX,NVHPC>:SHELL:${OpenACC_Fortran_FLAGS}> )
+        endif()
 
         ectrans_target_fortran_module_directory(
           TARGET            trans_gpu_${prec}
