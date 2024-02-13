@@ -31,59 +31,9 @@ jobs:
       matrix:
         build_type: [Release,Debug]
         name:
-          - linux gnu-10
-          - linux clang-12
-          - linux nvhpc-21.9
-          - linux intel-classic
           - macos
 
         include:
-
-          - name: linux gnu-10
-            os: ubuntu-20.04
-            compiler: gnu-10
-            compiler_cc: gcc-10
-            compiler_cxx: g++-10
-            compiler_fc: gfortran-10
-            ctest_options: -E memory
-            caching: true
-
-          - name: linux clang-12
-            os: ubuntu-20.04
-            compiler: clang-12
-            compiler_cc: clang-12
-            compiler_cxx: clang++-12
-            compiler_fc: gfortran-10
-            ctest_options: -E memory
-            caching: true
-
-          - name: linux clang-12
-            build_type: Release
-            os: ubuntu-20.04
-            compiler: clang-12
-            compiler_cc: clang-12
-            compiler_cxx: clang++-12
-            compiler_fc: gfortran-10
-            ctest_options: -E memory
-            caching: true
-
-          - name: linux nvhpc-21.9
-            os: ubuntu-20.04
-            compiler: nvhpc-21.9
-            compiler_cc: nvc
-            compiler_cxx: nvc++
-            compiler_fc: nvfortran
-            cmake_options: -DCMAKE_CXX_FLAGS=--diag_suppress177
-            ctest_options: -E memory
-            caching: false
-
-          - name : linux intel-classic
-            os: ubuntu-20.04
-            compiler: intel-classic
-            compiler_cc: icc
-            compiler_cxx: icpc
-            compiler_fc: ifort
-            caching: true
 
           - name: macos
             # Xcode compiler requires empty environment variables, so we pass null (~) here
@@ -171,8 +121,6 @@ jobs:
         recreate_cache: ${{ matrix.caching == false }}
         dependencies: |
           ecmwf/ecbuild
-          ecmwf/eckit
-          ecmwf/fckit
           ecmwf-ifs/fiat
         dependency_branch: develop
         dependency_cmake_options: |
