@@ -658,7 +658,9 @@ do jstep = 1, iters+iters_warmup
     if (ldump_checksums) then
       ! Remove trash at end of last block
       iend = ngptot - nproma * (ngpblks - 1)
-      zgp (iend+1:, :, ngpblks) = 0
+      zgpuv (iend+1:, :, :, ngpblks) = 0
+      zgp3a (iend+1:, :, :, ngpblks) = 0
+      zgp2 (iend+1:, :, ngpblks) = 0
       write (checksums_filename,'(A)') trim(cchecksums_path)//'_inv_trans.checksums'
       call dump_checksums(filename = checksums_filename, noutdump=noutdump,                 &
                         & jstep = jstep, myproc = myproc, nproma = nproma, ngptotg=ngptotg, &
