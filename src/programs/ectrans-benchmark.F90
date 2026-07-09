@@ -1706,7 +1706,7 @@ subroutine dump_checksums_psp(filename, noutdump,       &
   real(kind=jprb), intent(in) :: zspvor(:,:)
   real(kind=jprb), intent(in) :: zspdiv(:,:)
   real(kind=jprb), intent(in) :: zspscalar(:,:)
-  integer(kind=jpim) :: numfld
+  integer(kind=jpim) :: numfld, numscfld, nlev_checksum, jfld, ifirst, ilast
   real(kind=jprb), allocatable :: gspfld(:,:)
   character(len=4) :: checksum_hex
 
@@ -1738,8 +1738,16 @@ subroutine dump_checksums_psp(filename, noutdump,       &
   if (myproc == 1) then
     call gath_spec(pspecg=gspfld(1:numfld,:), kfgathg=numfld, kto=[(1, i = 1, numfld)], &
       &            kvset=ivsetsc, pspec=zspscalar)
-    checksum_hex = fletcher16_hex(gspfld(1:numfld,:))
-    write(noutdump, '(a," # ",a)') checksum_hex, "zspscalar"
+    nlev_checksum = size(ivset)
+    numscfld = (size(ivsetsc) - 1) / nlev_checksum
+    do jfld = 1, numscfld
+      ifirst = (jfld - 1) * nlev_checksum + 1
+      ilast = jfld * nlev_checksum
+      checksum_hex = fletcher16_hex(gspfld(ifirst:ilast,:))
+      write(noutdump, '(a," # ",a,"(",i0,")")') checksum_hex, "zspscalar", jfld
+    enddo
+    checksum_hex = fletcher16_hex(gspfld(numscfld*nlev_checksum+1:numscfld*nlev_checksum+1,:))
+    write(noutdump, '(a," # ",a,"(",i0,")")') checksum_hex, "zspscalar", numscfld + 1
   else
     call gath_spec(kfgathg=numfld, kto=[(1, i = 1, numfld)], kvset=ivsetsc, pspec=zspscalar)
   endif
