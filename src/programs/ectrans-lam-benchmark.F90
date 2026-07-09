@@ -1599,9 +1599,9 @@ subroutine dump_checksums(filename, noutdump, &
         open(noutdump, file = filename, action="write")
     endif
 
-    write(noutdump,'(a)')     "--------------------------------------------"
-    write(noutdump,'(a, i0)') "Iteration ", jstep
-    write(noutdump,'(a)')     "--------------------------------------------"
+    write(noutdump,'(a)')     "# --------------------------------------------"
+    write(noutdump,'(a, i0)') "# Iteration ", jstep
+    write(noutdump,'(a)')     "# --------------------------------------------"
 
     if (present(zgpuv) .or. present(zgp3a) .or. present(zgp2))  allocate(gfld(ngptotg,1))
     if (present(sp3d) .or. present(zspc2))  allocate(gspfld(max(size(ivset), 1), nspec2g))
@@ -1614,7 +1614,7 @@ subroutine dump_checksums(filename, noutdump, &
         call egath_grid(pgpg=gfld,kproma=nproma,kfgathg=1,kto=(/1/),kresol=1,pgp=zgpuv(:,jlev:jlev,jfld, :))
         if (myproc == 1) then
           checksum_hex = fletcher16_hex(gfld(:,:))
-          write (noutdump, '(a," | ",a," (",i0,", ",i0,")")') checksum_hex, "zgpuv", jlev, jfld
+          write (noutdump, '(a," # ",a," (",i0,", ",i0,")")') checksum_hex, "zgpuv", jlev, jfld
         endif
       enddo
     enddo
@@ -1626,7 +1626,7 @@ subroutine dump_checksums(filename, noutdump, &
         call egath_grid(pgpg=gfld,kproma=nproma,kfgathg=1,kto=(/1/),kresol=1,pgp=zgp3a(:,jlev:jlev,jfld, :))
         if (myproc == 1) then
           checksum_hex = fletcher16_hex(gfld(:,:))
-          write (noutdump, '(a," | ",a," (",i0,", ",i0,")")') checksum_hex, "zgp3a", jlev, jfld
+          write (noutdump, '(a," # ",a," (",i0,", ",i0,")")') checksum_hex, "zgp3a", jlev, jfld
         endif
       enddo
     enddo
@@ -1637,7 +1637,7 @@ subroutine dump_checksums(filename, noutdump, &
       call egath_grid(pgpg=gfld,kproma=nproma,kfgathg=1,kto=(/1/),kresol=1,pgp=zgp2(:,jfld:jfld,:))
       if (myproc == 1) then
         checksum_hex = fletcher16_hex(gfld(:,:))
-        write (noutdump, '(a," | ",a," (",i0,")")') checksum_hex, "zgp2", jfld
+        write (noutdump, '(a," # ",a," (",i0,")")') checksum_hex, "zgp2", jfld
       endif
     enddo
   endif
@@ -1648,7 +1648,7 @@ subroutine dump_checksums(filename, noutdump, &
         call egath_spec(pspecg=gspfld(1:numfld,:), kfgathg=numfld, kto=[(1, i = 1, numfld)], &
           &             kvset=ivset, pspec=sp3d(:,:,jfld))
         checksum_hex = fletcher16_hex(gspfld(1:numfld,:))
-        write(noutdump, '(a," | ",a,"(",i0,")")') checksum_hex, "sp3d", jfld
+        write(noutdump, '(a," # ",a,"(",i0,")")') checksum_hex, "sp3d", jfld
       else
         call egath_spec(kfgathg=numfld, kto=[(1, i = 1, numfld)], kvset=ivset, pspec=sp3d(:,:,jfld))
       endif
@@ -1659,7 +1659,7 @@ subroutine dump_checksums(filename, noutdump, &
     if (myproc == 1) then
       call egath_spec(pspecg=gspfld(1:1,:), kfgathg=1, kto=[1], kvset=ivsetsc, pspec=zspc2)
       checksum_hex = fletcher16_hex(gspfld(1,:))
-      write (noutdump, '(a," | ",a)') checksum_hex, "zspc2"
+      write (noutdump, '(a," # ",a)') checksum_hex, "zspc2"
     else
       call egath_spec(kfgathg=1, kto=[1], kvset=ivsetsc, pspec=zspc2)
     endif
