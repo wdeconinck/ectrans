@@ -147,9 +147,7 @@ foreach( benchmark ${benchmarks} )
       ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_derivatives ${reference_name} )
     endif()
   endif()
-endforeach()
 
-foreach( benchmark ${benchmarks} )
   # Establish which task/thread parameters to test
   set( ntasks 0 )
   set( nthreads 1 )
@@ -419,6 +417,27 @@ if( HAVE_ETRANS )
 
   foreach( prec dp sp )
     if( TARGET ectrans-lam-benchmark-cpu-${prec} )
+      set( benchmark ectrans-lam-benchmark-cpu-${prec} )
+      set( source_prefix "${checksums_dir}/${benchmark}_${nlon}x${nlat}_mpi0_omp1" )
+
+      ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld0 nlev1 niter2 scders0 uvders0 vordiv0 flt0 )
+      ectrans_add_local_reference_file( ${source_prefix}_nfld0 ${reference_name} )
+
+      ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev1 niter2 scders0 uvders0 vordiv0 flt0 )
+      ectrans_add_local_reference_file( ${source_prefix}_nfld10 ${reference_name} )
+
+      ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt0 )
+      ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20 ${reference_name} )
+
+      ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders1 uvders0 vordiv0 flt0 )
+      ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_scders ${reference_name} )
+
+      ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders0 vordiv1 flt0 )
+      ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_vordiv ${reference_name} )
+
+      ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders1 vordiv1 flt0 )
+      ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_vordiv_uvders ${reference_name} )
+
       set( nthreads 1 )
       if( HAVE_OMP )
         list( APPEND nthreads 8 )
@@ -436,7 +455,7 @@ if( HAVE_ETRANS )
             continue()
           endif()
 
-          set(base_title "ectrans_lam_test_benchmark_${prec}_${nlon}x${nlat}_mpi${mpi}_omp${omp}" )
+          set(base_title "${benchmark}_${nlon}x${nlat}_mpi${mpi}_omp${omp}" )
 
           ecbuild_add_test( TARGET ${base_title}_nfld0
               COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 0 --dump-checksums ${checksums_dir}/${base_title}_nfld0
@@ -444,6 +463,8 @@ if( HAVE_ETRANS )
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld0 )
+            ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld0 nlev1 niter2 scders0 uvders0 vordiv0 flt0 )
+            ectrans_add_checksum_reference_tests( ${base_title}_nfld0 ${reference_name} )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10
               COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --dump-checksums ${checksums_dir}/${base_title}_nfld10
@@ -451,13 +472,17 @@ if( HAVE_ETRANS )
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10 )
+            ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev1 niter2 scders0 uvders0 vordiv0 flt0 )
+            ectrans_add_checksum_reference_tests( ${base_title}_nfld10 ${reference_name} )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --dump-checksums ${checksums_dir}/${base_title}_nfld20
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20 )
+            ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt0 )
+            ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20 ${reference_name} )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_scders
               COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --scders --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_scders
@@ -465,6 +490,8 @@ if( HAVE_ETRANS )
               OMP ${omp}
           )
           ectrans_set_test_properties(  ${base_title}_nfld10_nlev20_scders )
+            ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders1 uvders0 vordiv0 flt0 )
+            ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_scders ${reference_name} )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_vordiv
               COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_vordiv
@@ -472,6 +499,8 @@ if( HAVE_ETRANS )
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_vordiv )
+            ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders0 vordiv1 flt0 )
+            ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_vordiv ${reference_name} )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_vordiv_uvders
               COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --uvders --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_vordiv_uvders
@@ -479,6 +508,8 @@ if( HAVE_ETRANS )
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_vordiv_uvders )
+            ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders1 vordiv1 flt0 )
+            ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_vordiv_uvders ${reference_name} )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_nproma16
               COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --nproma 16 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_nproma16
@@ -486,6 +517,8 @@ if( HAVE_ETRANS )
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_nproma16 )
+          ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt0 )
+          ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_nproma16 ${reference_name} )
 
           # Check it works with LALLOPERM=F (cpu only)
           ecbuild_add_test( TARGET ${base_title}_lalloperm_f
@@ -494,6 +527,8 @@ if( HAVE_ETRANS )
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_lalloperm_f )
+          ectrans_checksum_reference_name( reference_name ${benchmark} LAM ${nlon}x${nlat} nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt0 )
+          ectrans_add_checksum_reference_tests( ${base_title}_lalloperm_f ${reference_name} )
 
         endforeach()
       endforeach()
