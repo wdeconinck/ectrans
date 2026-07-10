@@ -195,6 +195,21 @@ ecbuild_add_option( FEATURE FIELD_API
                     REQUIRED_PACKAGES "field_api"
                    )
 
+ecbuild_add_option( FEATURE REFERENCE_TESTS DEFAULT OFF
+                    DESCRIPTION "Compare each ectrans-benchmark checksum file against references" )
+
+set( ECTRANS_TEST_REFERENCE_DIR
+     "${CMAKE_CURRENT_SOURCE_DIR}/tests/references/v${ectrans_VERSION_STR}-${ectrans_GIT_SHA1}"
+     CACHE PATH "Directory containing ectrans-benchmark checksum reference files" FORCE )
+if (HAVE_REFERENCE_TESTS)
+  ecbuild_info("Reference tests requested, using reference directory: ${ECTRANS_TEST_REFERENCE_DIR}")
+  if (NOT EXISTS "${ECTRANS_TEST_REFERENCE_DIR}")
+    ecbuild_warn("Reference tests requested, but reference directory does not exist: ${ECTRANS_TEST_REFERENCE_DIR}.
+    After running the local-reference tests, you can copy the generated checksum reference files to the reference directory using the script:
+    ${CMAKE_BINARY_DIR}/tests/ectrans-update-references.sh")
+  endif()
+endif()
+
 ### Add sources
 ecbuild_override_compiler_flags(
   COMPILE_FLAGS ${CMAKE_CURRENT_SOURCE_DIR}/cmake/ectrans_compile_flags.cmake

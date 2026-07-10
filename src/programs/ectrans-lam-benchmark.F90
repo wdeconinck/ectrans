@@ -137,7 +137,7 @@ logical :: lmeminfo = .false. ! Show information from FIAT routine ec_meminfo at
 integer(kind=jpim) :: nstats_mem = 0
 integer(kind=jpim) :: ntrace_stats = 0
 integer(kind=jpim) :: nprnt_stats = 1
-character(len=256) :: checksums_filename
+character(len=1024) :: checksums_filename
 
 ! The multiplier of the machine epsilon used as a tolerance for correctness checking
 ! ncheck = 0 (the default) means that correctness checking is disabled
@@ -203,7 +203,7 @@ logical :: luse_mpi = .true.
 logical :: lalloperm = .true.
 integer, external :: ec_mpirank
 
-character(len=128)  :: cchecksums_path = ''
+character(len=1024) :: cchecksums_path = ''
 integer(kind=jpim)  :: ierr
 real(kind=jprb) :: zexwn, zeywn
 
@@ -640,7 +640,7 @@ do jstep = 1, iters
     ! Remove trash at end of last block
     iend = ngptot - nproma * (ngpblks - 1)
     zgp2 (iend+1:, :, ngpblks) = 0
-    write (checksums_filename,'(A)') trim(cchecksums_path)//'_inv_trans.checksums'
+    write (checksums_filename,'(A)') trim(cchecksums_path)//'.checksums'
     call dump_checksums(filename = checksums_filename, noutdump = noutdump,                 &
                       & jstep = jstep, myproc = myproc, nproma = nproma, ngptotg = ngptotg, &
                       & ivset = ivset, ivsetsc = ivsetsc,                                   &
@@ -727,11 +727,11 @@ do jstep = 1, iters
   endif
 
   if (ldump_checksums) then
-    write (checksums_filename,'(A)') trim(cchecksums_path)//'_dir_trans.checksums'
+    write (checksums_filename,'(A)') trim(cchecksums_path)//'.checksums'
     call dump_checksums(filename = checksums_filename, noutdump = noutdump,                 &
                       & jstep = jstep, myproc = myproc, nproma = nproma, ngptotg = ngptotg, &
                       & ivset = ivset, ivsetsc = ivsetsc,                                   &
-                      & nspec2g = nspec2g, sp3d = sp3d, zspc2 = zspsc2)
+                      & nspec2g = nspec2g, sp3d = sp3d, zspc2 = zspsc2, append_checksums=.true.)
   endif
 
   !=================================================================================================
@@ -1079,7 +1079,7 @@ end function
 
 function get_str_value(cname, iarg) result(value)
 
-  character(len=128) :: value
+  character(len=1024) :: value
   character(len=*), intent(in) :: cname
   integer, intent(inout) :: iarg
 
@@ -1138,7 +1138,7 @@ subroutine get_command_line_arguments(nlon, nlat, nsmax, nmsmax, &
   integer, intent(inout) :: nprtrw          ! Size of W set (spectral decomposition)
   integer, intent(inout) :: ncheck          ! The multiplier of the machine epsilon used as a
                                             ! tolerance for correctness checking
-  character(len=128), intent(inout) :: cchecksums_path ! path to export checksum files
+  character(len=1024), intent(inout) :: cchecksums_path ! path to export checksum files
   logical, intent(inout) :: lalloperm                  ! keep FOUBUF & FOUBUF_IN allocated
   character(len=128) :: carg          ! Storage variable for command line arguments
   integer            :: iarg          ! Argument index
@@ -1566,7 +1566,7 @@ end subroutine dump_spectral_field
 subroutine dump_checksums(filename, noutdump, &
   & jstep, myproc, nproma, ngptotg, nspec2g,  &
   & ivset, ivsetsc,                           &
-  & zgpuv, zgp3a, zgp2, sp3d, zspc2)
+  & zgpuv, zgp3a, zgp2, sp3d, zspc2, append_checksums)
   use ec_checksum_mod, only : fletcher16_hex
 
   character(len=*),   intent(in) :: filename   ! filename
@@ -1584,24 +1584,34 @@ subroutine dump_checksums(filename, noutdump, &
   real(kind=jprb), intent(in), optional :: zgp2  (:,:,:)
   real(kind=jprb), intent(in), optional :: sp3d  (:,:,:)
   real(kind=jprb), intent(in), optional :: zspc2 (:,:)
+  logical, intent(in), optional :: append_checksums
 
   integer(kind=jpim) :: jlev, jfld, numfld
   real(kind=jprb), allocatable :: gfld(:,:)
   real(kind=jprb), allocatable :: gspfld(:,:)
   logical :: exist = .false.
+  logical :: append
+  integer(kind=jpim), save :: last_header_jstep = -1
   character(len=4) :: checksum_hex
 
   if (myproc == 1) then
-    if (jstep>1)  inquire(file = filename, exist = exist)
+    append = .false.
+    if (present(append_checksums)) append = append_checksums
+    if (jstep > 1) append = .true.
+    if (append) inquire(file = filename, exist = exist)
       if (exist) then
         open(noutdump, file = filename, status="old", position="append", action="write")
       else
         open(noutdump, file = filename, action="write")
+        last_header_jstep = -1
     endif
 
-    write(noutdump,'(a)')     "# --------------------------------------------"
-    write(noutdump,'(a, i0)') "# Iteration ", jstep
-    write(noutdump,'(a)')     "# --------------------------------------------"
+    if (jstep /= last_header_jstep) then
+      write(noutdump,'(a)')     "# --------------------------------------------"
+      write(noutdump,'(a, i0)') "# Iteration ", jstep
+      write(noutdump,'(a)')     "# --------------------------------------------"
+      last_header_jstep = jstep
+    endif
 
     if (present(zgpuv) .or. present(zgp3a) .or. present(zgp2))  allocate(gfld(ngptotg,1))
     if (present(sp3d) .or. present(zspc2))  allocate(gspfld(max(size(ivset), 1), nspec2g))

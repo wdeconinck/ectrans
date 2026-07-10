@@ -86,12 +86,22 @@ add_subdirectory( trans/adjoint )
 # This tests CPU and/or GPU versions, depending on which are enabled
 # --------------------------------------------------------------------------------------------------
 
-macro(ectrans_set_test_properties target)
-  if( "${target}" MATCHES "gpu" )
-    set_tests_properties(${target} PROPERTIES LABELS "gpu;Fortran")
-  endif()
-  set_tests_properties( ${target} PROPERTIES FIXTURES_SETUP checksum_tests )
-endmacro()
+set( checksums_dir ${CMAKE_CURRENT_BINARY_DIR}/checksums )
+file( MAKE_DIRECTORY ${checksums_dir} )
+set( local_reference_dir ${CMAKE_CURRENT_BINARY_DIR}/local-reference )
+file( MAKE_DIRECTORY ${local_reference_dir} )
+configure_file( ectrans-update-references.sh.in
+                ${CMAKE_CURRENT_BINARY_DIR}/ectrans-update-references.sh @ONLY )
+
+set( reference_dir ${CMAKE_CURRENT_BINARY_DIR}/reference )
+if( IS_SYMLINK "${reference_dir}" )
+  file( REMOVE "${reference_dir}" )
+elseif( EXISTS "${reference_dir}" )
+  ecbuild_critical( "Cannot create reference symlink because path already exists: ${reference_dir}" )
+endif()
+file( CREATE_LINK "${ECTRANS_TEST_REFERENCE_DIR}" "${reference_dir}" SYMBOLIC )
+
+include( cmake/ectrans_test_helpers.cmake )
 
 # Determine which benchmarks are available
 set( benchmarks "" )
@@ -107,6 +117,33 @@ endif()
 if( TARGET ectrans-benchmark-gpu-sp )
   list( APPEND benchmarks ectrans-benchmark-gpu-sp )
 endif()
+
+foreach( benchmark ${benchmarks} )
+  if( benchmark MATCHES "ectrans-benchmark-cpu" )
+    set( source_prefix "${checksums_dir}/${benchmark}_T47_O48_mpi0_omp1_callmode1" )
+
+    ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld0 nlev1 niter2 scders0 uvders0 vordiv0 flt0 )
+    ectrans_add_local_reference_file( ${source_prefix}_nfld0 ${reference_name} )
+
+    ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt0 )
+    ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20 ${reference_name} )
+
+    ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders1 uvders1 vordiv0 flt0 )
+    ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_derivatives ${reference_name} )
+
+    ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders0 uvders0 vordiv1 flt0 )
+    ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_vordiv ${reference_name} )
+
+    ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt1 )
+    ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_flt ${reference_name} )
+
+    if( HAVE_FIELD_API )
+      set( source_prefix "${checksums_dir}/${benchmark}_T47_O48_mpi0_omp1_callmode1_field_api" )
+      ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders1 uvders0 vordiv0 flt0 )
+      ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_derivatives ${reference_name} )
+    endif()
+  endif()
+endforeach()
 
 foreach( benchmark ${benchmarks} )
   # Establish which task/thread parameters to test
@@ -148,81 +185,94 @@ foreach( benchmark ${benchmarks} )
         continue()
       endif()
 
-      # TCO47 truncation
-      set( t 47 )
-      set( grid O48 )
-
-      # Base arguments -> 2 iterations, memory consumption/pinning information, spectral norms, and
-      # verbose output
-      set( base_args --niter 2 --meminfo --norms -v )
-
       foreach( callmode 1 2 )
+
+        # Base arguments -> 2 iterations, memory consumption/pinning information, spectral norms, and
+        # verbose output
+        set( t 47 )
+        set( grid O48 )
+        set( niter 2 )
+        set( base_args --truncation ${t} --grid ${grid} --callmode ${callmode} --niter ${niter} --meminfo --norms -v )
+
         set (base_title "${benchmark}_T${t}_${grid}_mpi${mpi}_omp${omp}_callmode${callmode}")
         # Check it works with 0 3D scalar fields
         ecbuild_add_test( TARGET ${base_title}_nfld0
             COMMAND ${benchmark}
-            ARGS --truncation ${t} --grid ${grid} --nfld 0 --check 100 --callmode ${callmode} --dump-checksums ${base_title}_nfld0 ${base_args}
+            ARGS ${base_args} --nfld 0 --check 100 --callmode ${callmode} --dump-checksums ${checksums_dir}/${base_title}_nfld0
             MPI ${mpi}
             OMP ${omp}
         )
         ectrans_set_test_properties( ${base_title}_nfld0 )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld0 nlev1 niter${niter} scders0 uvders0 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld0 ${reference_name} )
 
         # Check it works with 10 3D scalar fields and 20 levels
         ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20
             COMMAND ${benchmark}
-            ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --check 100 --callmode ${callmode} --dump-checksums ${base_title}_nfld10_nlev20 ${base_args}
+            ARGS ${base_args} --nfld 10 --nlev 20 --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20
             MPI ${mpi}
             OMP ${omp}
         )
         ectrans_set_test_properties( ${base_title}_nfld10_nlev20 )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20 ${reference_name} )
 
         # Check it works with 10 3D scalar fields, 20 levels, and derivatives
         ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_derivatives
             COMMAND ${benchmark}
-            ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --scders --uvders --check 100 --callmode ${callmode} --dump-checksums ${base_title}_nfld10_nlev20_derivatives ${base_args}
+            ARGS ${base_args} --nfld 10 --nlev 20 --scders --uvders --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_derivatives
             MPI ${mpi}
             OMP ${omp}
         )
         ectrans_set_test_properties( ${base_title}_nfld10_nlev20_derivatives )
-
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders1 uvders1 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_derivatives ${reference_name} )
         # Check it works with 10 3D scalar fields, 20 levels, and vordiv in grid point space
         ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_vordiv
             COMMAND ${benchmark}
-            ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --vordiv --check 100  --callmode ${callmode} --dump-checksums ${base_title}_nfld10_nlev20_vordiv ${base_args}
+            ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_vordiv
             MPI ${mpi}
             OMP ${omp}
         )
         ectrans_set_test_properties( ${base_title}_nfld10_nlev20_vordiv )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv1 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_vordiv ${reference_name} )
 
         # Check it works with 10 3D scalar fields, 20 levels, and NPROMA=16
         ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_nproma16
             COMMAND ${benchmark}
-            ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --nproma 16 --check 100 --callmode ${callmode} --dump-checksums ${base_title}_nfld10_nlev20_nproma16 ${base_args}
+            ARGS ${base_args} --nfld 10 --nlev 20 --nproma 16 --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_nproma16
             MPI ${mpi}
             OMP ${omp}
         )
         ectrans_set_test_properties( ${base_title}_nfld10_nlev20_nproma16 )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_nproma16 ${reference_name} )
 
         # Check it works with LALLOPERM=F (cpu only)
         if( ${benchmark} MATCHES "cpu" )
           ecbuild_add_test( TARGET ${base_title}_lalloperm_f
               COMMAND ${benchmark}
-              ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --check 100 --callmode ${callmode} --deallocate-foubuf-temps --dump-checksums ${base_title}_lalloperm_f ${base_args}
+              ARGS ${base_args} --nfld 10 --nlev 20 --deallocate-foubuf-temps --check 100 --dump-checksums ${checksums_dir}/${base_title}_lalloperm_f
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_lalloperm_f )
+          ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt0 )
+          ectrans_add_checksum_reference_tests( ${base_title}_lalloperm_f ${reference_name} )
         endif()
 
         # Check it works with 10 3D scalar fields, 20 levels, and NPROMATR=20 (feature only works for CPU)
         if( ${benchmark} MATCHES "cpu" AND ${callmode} MATCHES "1" )
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_npromatr20
               COMMAND ${benchmark}
-              ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --npromatr 20 --check 100 --callmode ${callmode} --dump-checksums ${base_title}_nfld10_nlev20_npromatr20 ${base_args}
+              ARGS ${base_args} --nfld 10 --nlev 20 --npromatr 20 --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_npromatr20
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_npromatr20 )
+          ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt0 )
+          ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_npromatr20 ${reference_name} )
         endif()
 
         if( ${benchmark} MATCHES "cpu" )
@@ -230,11 +280,13 @@ foreach( benchmark ${benchmarks} )
           # TODO: Find out why the FLT gives so much higher errors
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_flt
               COMMAND ${benchmark}
-              ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --flt --check 1000000 --callmode ${callmode} --dump-checksums ${base_title}_nfld10_nlev20_flt ${base_args}
+              ARGS ${base_args} --nfld 10 --nlev 20 --flt --check 1000000 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_flt
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_flt )
+          ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt1 )
+          ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_flt ${reference_name} )
         endif()
       endforeach()
     endforeach()
@@ -262,77 +314,87 @@ foreach( benchmark ${benchmarks} )
   # Add test for each parameter combination
   foreach( mpi ${ntasks} )
     foreach( omp ${nthreads} )
-      # TCO47 truncation
-      set( t 47 )
-      set( grid O48 )
-
-      # Base arguments -> 2 iterations, memory consumption/pinning information, spectral norms, and
-      # verbose output
-      set( base_args --niter 2 --meminfo --norms -v --field-api)
       foreach( callmode 1 2 )
-      set (base_title "${benchmark}_T${t}_${grid}_mpi${mpi}_omp${omp}_callmode${callmode}_field_api")
 
-      #----
-      # Check it works with 0 3D scalar fields
-      ecbuild_add_test( TARGET ${base_title}_nfld0
-          COMMAND ${benchmark}
-          ARGS --truncation ${t} --grid ${grid} --nfld 0 --check 100 ${base_args} --callmode ${callmode}  --dump-checksums ${base_title}_nfld0
-          MPI ${mpi}
-          OMP ${omp}
-      )
-      ectrans_set_test_properties( ${base_title}_nfld0 )
+        set( t 47 )
+        set( grid O48 )
+        set( niter 2 )
 
-      #----
-      # Check it works with 10 3D scalar fields and 20 levels
-      ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20
-          COMMAND ${benchmark}
-          ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --check 100 ${base_args} --callmode ${callmode}  --dump-checksums ${base_title}_nfld10_nlev20
-          MPI ${mpi}
-          OMP ${omp}
-      )
-      ectrans_set_test_properties( ${base_title}_nfld10_nlev20 )
+        set( base_args --truncation ${t} --grid ${grid} --niter ${niter} --callmode ${callmode} --meminfo --norms -v --field-api)
+        set (base_title "${benchmark}_T${t}_${grid}_mpi${mpi}_omp${omp}_callmode${callmode}_field_api")
 
-      #----
-      # Check it works with 10 3D scalar fields, 20 levels, and scalar derivatives
-      ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_derivatives
-          COMMAND ${benchmark}
-          ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --scders --check 100 ${base_args} --callmode ${callmode}  --dump-checksums ${base_title}_nfld10_nlev20_scders
-          MPI ${mpi}
-          OMP ${omp}
-      )
-      ectrans_set_test_properties( ${base_title}_nfld10_nlev20_derivatives )
-
-      #----
-      # Check it works with 10 3D scalar fields, 20 levels, and wind transforms
-      ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_vordiv
-          COMMAND ${benchmark}
-          ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --vordiv --check 100  ${base_args} --callmode ${callmode} --dump-checksums ${base_title}_nfld10_nlev20_vordiv
-          MPI ${mpi}
-          OMP ${omp}
-      )
-      ectrans_set_test_properties( ${base_title}_nfld10_nlev20_vordiv )
-
-      #----
-      # Check it works with 10 3D scalar fields, 20 levels, and NPROMA=16
-      ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_nproma16
-          COMMAND ${benchmark}
-          ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --nproma 16 --check 100 ${base_args} --callmode ${callmode}  --dump-checksums ${base_title}_nfld10_nlev20_nproma16
-          MPI ${mpi}
-          OMP ${omp}
-      )
-      ectrans_set_test_properties( ${base_title}_nfld10_nlev20_nproma16 )
-
-      #----
-      if( ${benchmark} MATCHES "cpu" )
-        # Check it works with 10 3D scalar fields, 20 levels, and the fast Legendre tranform (CPU only)
-        ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_flt
+        #----
+        # Check it works with 0 3D scalar fields
+        ecbuild_add_test( TARGET ${base_title}_nfld0
             COMMAND ${benchmark}
-            ARGS --truncation ${t} --grid ${grid} --nfld 10 --nlev 20 --flt --check 1000000 ${base_args} --callmode ${callmode}  --dump-checksums ${base_title}_nfld10_nlev20_flt
+            ARGS ${base_args} --nfld 0 --check 100 --callmode ${callmode} --dump-checksums ${checksums_dir}/${base_title}_nfld0
             MPI ${mpi}
             OMP ${omp}
         )
-        ectrans_set_test_properties( ${base_title}_nfld10_nlev20_flt )
-      endif()
+        ectrans_set_test_properties( ${base_title}_nfld0 )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld0 nlev1 niter${niter} scders0 uvders0 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld0 ${reference_name} )
+        #----
+        # Check it works with 10 3D scalar fields and 20 levels
+        ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20
+            COMMAND ${benchmark}
+            ARGS ${base_args} --nfld 10 --nlev 20 --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20
+            MPI ${mpi}
+            OMP ${omp}
+        )
+        ectrans_set_test_properties( ${base_title}_nfld10_nlev20 )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20 ${reference_name} )
+
+        #----
+        # Check it works with 10 3D scalar fields, 20 levels, and scalar derivatives
+        ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_derivatives
+            COMMAND ${benchmark}
+          ARGS ${base_args} --nfld 10 --nlev 20 --scders --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_derivatives
+            MPI ${mpi}
+            OMP ${omp}
+        )
+        ectrans_set_test_properties( ${base_title}_nfld10_nlev20_derivatives )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders1 uvders0 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_derivatives ${reference_name} )
+
+        #----
+        # Check it works with 10 3D scalar fields, 20 levels, and wind transforms
+        ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_vordiv
+            COMMAND ${benchmark}
+            ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_vordiv
+            MPI ${mpi}
+            OMP ${omp}
+        )
+        ectrans_set_test_properties( ${base_title}_nfld10_nlev20_vordiv )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv1 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_vordiv ${reference_name} )
+
+        #----
+        # Check it works with 10 3D scalar fields, 20 levels, and NPROMA=16
+        ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_nproma16
+            COMMAND ${benchmark}
+          ARGS ${base_args} --nfld 10 --nlev 20 --nproma 16 --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_nproma16
+          MPI ${mpi}
+          OMP ${omp}
+        )
+        ectrans_set_test_properties( ${base_title}_nfld10_nlev20_nproma16 )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt0 )
+        ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_nproma16 ${reference_name} )
+
+        #----
+        if( ${benchmark} MATCHES "cpu" )
+          # Check it works with 10 3D scalar fields, 20 levels, and the fast Legendre tranform (CPU only)
+          ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_flt
+              COMMAND ${benchmark}
+              ARGS ${base_args} --nfld 10 --nlev 20 --flt --check 1000000 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_flt
+              MPI ${mpi}
+              OMP ${omp}
+          )
+          ectrans_set_test_properties( ${base_title}_nfld10_nlev20_flt )
+          ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt1 )
+          ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_flt ${reference_name} )
+        endif()
 
       endforeach() # callmode
     endforeach() # omp
@@ -372,49 +434,49 @@ if( HAVE_ETRANS )
           set(base_title "ectrans_lam_test_benchmark_${prec}_${nlon}x${nlat}_mpi${mpi}_omp${omp}" )
 
           ecbuild_add_test( TARGET ${base_title}_nfld0
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 0 --dump-checksums ${base_title}_nfld0
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 0 --dump-checksums ${checksums_dir}/${base_title}_nfld0
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld0 )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --dump-checksums ${base_title}_nfld10
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --dump-checksums ${checksums_dir}/${base_title}_nfld10
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10 )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --dump-checksums ${base_title}_nfld20
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --dump-checksums ${checksums_dir}/${base_title}_nfld20
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20 )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_scders
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --scders --dump-checksums ${base_title}_nfld10_nlev20_scders
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --scders --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_scders
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties(  ${base_title}_nfld10_nlev20_scders )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_vordiv
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --dump-checksums ${base_title}_nfld10_nlev20_vordiv
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_vordiv
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_vordiv )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_vordiv_uvders
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --uvders --dump-checksums ${base_title}_nfld10_nlev20_vordiv_uvders
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --vordiv --uvders --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_vordiv_uvders
               MPI ${mpi}
               OMP ${omp}
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_vordiv_uvders )
 
           ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_nproma16
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --nproma 16 --dump-checksums ${base_title}_nfld10_nlev20_nproma16
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --nproma 16 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_nproma16
               MPI ${mpi}
               OMP ${omp}
           )
@@ -422,7 +484,7 @@ if( HAVE_ETRANS )
 
           # Check it works with LALLOPERM=F (cpu only)
           ecbuild_add_test( TARGET ${base_title}_lalloperm_f
-              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --nproma 16 --deallocate-foubuf-temps --dump-checksums ${base_title}_lalloperm_f
+              COMMAND ectrans-lam-benchmark-cpu-${prec} ARGS ${base_args} --nfld 10 --nlev 20 --nproma 16 --deallocate-foubuf-temps --dump-checksums ${checksums_dir}/${base_title}_lalloperm_f
               MPI ${mpi}
               OMP ${omp}
           )

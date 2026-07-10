@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+
 # (C) Copyright 2026- ECMWF.
 #
 # This software is licensed under the terms of the Apache Licence Version 2.0
@@ -14,6 +15,10 @@ This means differences in comment text alone are ignored.
 """
 
 import argparse
+import os
+from pathlib import Path
+
+SKIP_MISSING_REFERENCE = 77
 
 class style:
     BOLD = "\033[1m"
@@ -65,6 +70,13 @@ def wrap_text(text, width):
         lines.append("")
 
     return lines
+
+
+def display_path(path):
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        return path
 
 
 def differences(line, other_line):
@@ -161,6 +173,7 @@ def group_selected_lines(selected_indices):
 def print_selected_lines(first_lines, second_lines, selected_indices, mismatching_indices, left_width,
                          right_width, first_path, second_path, color_map):
     groups = group_selected_lines(selected_indices)
+    line_number_width = 10
     left_header_width = max(1, left_width - 10)
     right_header_width = max(1, right_width - 10)
 
@@ -172,13 +185,13 @@ def print_selected_lines(first_lines, second_lines, selected_indices, mismatchin
         line_label = "line" if index == 0 else ""
         left_header = left_header_lines[index] if index < len(left_header_lines) else ""
         right_header = right_header_lines[index] if index < len(right_header_lines) else ""
-        print(f"{line_label:<5} {left_header:<{left_width}} {right_header}")
+        print(f"{'':<2}{line_label:<{line_number_width}} {left_header:<{left_width}} {right_header}")
 
     print()
 
     for group_number, group in enumerate(groups):
         if group_number > 0:
-            print(f"{'...':<5}")
+            print(f"{'':<2}{'...':<{line_number_width}}")
 
         for line_index in group:
             left_line = first_lines[line_index] if line_index < len(first_lines) else ""
@@ -197,7 +210,8 @@ def print_selected_lines(first_lines, second_lines, selected_indices, mismatchin
                 is_match=is_match,
                 change_style=color_map["change"],
             )
-            print(f"{line_index + 1:<5} {left_rendered} {right_rendered}")
+            change_marker = ">" if not is_match else ""
+            print(f"{change_marker:<2}{line_index + 1:<{line_number_width}} {left_rendered} {right_rendered}")
 
 
 def select_context_lines(mismatching_indices, total_lines, numlines, whole_file):
@@ -213,11 +227,55 @@ def select_context_lines(mismatching_indices, total_lines, numlines, whole_file)
     return sorted(selected)
 
 
-def compare_files(first_path, second_path, numlines, whole_file, show_matching, color_map):
+def line_contains_marker(lines, index, marker):
+    return index < len(lines) and marker in lines[index]
+
+
+def find_stop_index(first_display_lines, second_display_lines, mismatching_indices, marker):
+    if not marker or not mismatching_indices:
+        return None
+
+    first_mismatch = mismatching_indices[0]
+    max_lines = max(len(first_display_lines), len(second_display_lines))
+
+    for index in range(first_mismatch + 1, max_lines):
+        if line_contains_marker(first_display_lines, index, marker):
+            return index
+        if line_contains_marker(second_display_lines, index, marker):
+            return index
+
+    return None
+
+
+def find_marker_index(first_display_lines, second_display_lines, marker):
+    if not marker:
+        return None
+
+    max_lines = max(len(first_display_lines), len(second_display_lines))
+    for index in range(max_lines):
+        if line_contains_marker(first_display_lines, index, marker):
+            return index
+        if line_contains_marker(second_display_lines, index, marker):
+            return index
+
+    return None
+
+
+def select_lines_before_marker(selected_indices, first_display_lines, second_display_lines, marker):
+    stop_index = find_marker_index(first_display_lines, second_display_lines, marker)
+    if stop_index is None:
+        return selected_indices
+
+    return [index for index in selected_indices if index < stop_index]
+
+
+def compare_files(first_path, second_path, numlines, whole_file, show_matching, color_map, stop_marker):
     first_display_lines = read_display_lines(first_path)
     second_display_lines = read_display_lines(second_path)
     first_lines = read_normalized_lines(first_path)
     second_lines = read_normalized_lines(second_path)
+    first_display_path = display_path(first_path)
+    second_display_path = display_path(second_path)
     left_width = max((len(line) for line in first_display_lines), default=0) + 30
     right_width = max((len(line) for line in second_display_lines), default=0) + 30
 
@@ -234,6 +292,12 @@ def compare_files(first_path, second_path, numlines, whole_file, show_matching, 
     if not mismatching_indices:
         if show_matching:
             selected_indices = list(range(max_lines))
+            selected_indices = select_lines_before_marker(
+                selected_indices,
+                first_display_lines,
+                second_display_lines,
+                stop_marker,
+            )
             print_selected_lines(
                 first_display_lines,
                 second_display_lines,
@@ -241,13 +305,17 @@ def compare_files(first_path, second_path, numlines, whole_file, show_matching, 
                 set(),
                 left_width,
                 right_width,
-                first_path,
-                second_path,
+                first_display_path,
+                second_display_path,
                 color_map,
             )
         return True
 
     selected_indices = select_context_lines(mismatching_indices, max_lines, numlines, whole_file)
+    stop_index = find_stop_index(first_display_lines, second_display_lines, mismatching_indices, stop_marker)
+    if stop_index is not None:
+        selected_indices = [index for index in selected_indices if index < stop_index]
+
     print_selected_lines(
         first_display_lines,
         second_display_lines,
@@ -255,8 +323,8 @@ def compare_files(first_path, second_path, numlines, whole_file, show_matching, 
         set(mismatching_indices),
         left_width,
         right_width,
-        first_path,
-        second_path,
+        first_display_path,
+        second_display_path,
         color_map,
     )
 
@@ -291,7 +359,16 @@ def main():
         default="change:yellow_bold",
         help=(
             "Comma-separated mapping such as 'change:yellow_bold', 'change:bold', "
-            "'change:red_bold' or 'change:green_bold'"
+            "'change:red_bold', 'change:green_bold' or 'change:none'"
+        )
+    )
+    parser.add_argument(
+        "-s", "--stop-marker",
+        metavar="TEXT",
+        help=(
+            "Stop printing output before the first line containing TEXT "
+            "after the first mismatch. The marker is searched in original lines, "
+            "including comments. The full files are still compared."
         )
     )
     args = parser.parse_args()
@@ -301,6 +378,10 @@ def main():
     except ValueError as exc:
         parser.error(str(exc))
 
+    if not Path(args.first_file).is_file():
+        print(f"Skipping checksum comparison: missing reference file: {args.first_file}")
+        raise SystemExit(SKIP_MISSING_REFERENCE)
+
     if compare_files(
         args.first_file,
         args.second_file,
@@ -308,6 +389,7 @@ def main():
         args.whole_file,
         args.show_matching,
         color_map,
+        args.stop_marker,
     ):
         raise SystemExit(0)
 

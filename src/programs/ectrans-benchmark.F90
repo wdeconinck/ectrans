@@ -183,14 +183,14 @@ type(fields_lists) :: ylf
 logical :: ldump_values = .false.
 logical :: lpinning = .false.
 logical :: ldump_checksums = .false.
-character(len=256) :: checksums_filename
+character(len=1024) :: checksums_filename
 
 integer, external :: ec_mpirank
 logical :: luse_mpi = .true.
 logical :: lalloperm = .true.
 
 character(len=16)   :: cgrid = ''
-character(len=128)  :: cchecksums_path = ''
+character(len=1024) :: cchecksums_path = ''
 
 integer(kind=jpim) :: iend
 integer(kind=jpim) :: ierr
@@ -722,7 +722,7 @@ do jstep = 1, iters+iters_warmup
   if (ldump_checksums) then
     ! Remove trash at end of last block
     iend = ngptot - nproma * (ngpblks - 1)
-    write (checksums_filename,'(A)') trim(cchecksums_path)//'_inv_trans.checksums'
+    write (checksums_filename,'(A)') trim(cchecksums_path)//'.checksums'
     if (icall_mode == 1) then
       ! Remove trash at end of last block
       zgp (iend+1:, :, ngpblks) = 0
@@ -799,17 +799,18 @@ do jstep = 1, iters+iters_warmup
   endif
 
   if (ldump_checksums) then
-    write (checksums_filename,'(A)') trim(cchecksums_path)//'_dir_trans.checksums'
+    write (checksums_filename,'(A)') trim(cchecksums_path)//'.checksums'
 
     if (icall_mode == 1) then
       call dump_checksums_psp(filename=checksums_filename, noutdump=noutdump_checksum, &
         &                     jstep=jstep, myproc=myproc, ivset=ivset, ivsetsc=ivsetsc, &
-        &                     nspec2g=nspec2g, zspvor=zspvor, zspdiv=zspdiv, zspscalar=zspscalar)
+        &                     nspec2g=nspec2g, zspvor=zspvor, zspdiv=zspdiv, zspscalar=zspscalar, &
+        &                     append_checksums=.true.)
     else
       call dump_checksums_psp_3a_2(filename=checksums_filename, noutdump=noutdump_checksum, &
         &                          jstep=jstep, myproc=myproc, ivset=ivset, ivsetsc2=ivsetsc2, &
         &                          nspec2g=nspec2g, zspvor=zspvor, zspdiv=zspdiv, zspsc3a=zspsc3a, &
-        &                          zspsc2=zspsc2)
+        &                          zspsc2=zspsc2, append_checksums=.true.)
     endif
   endif
   call gstats(5,1)
@@ -1190,7 +1191,7 @@ end function
 
 function get_str_value(cname, iarg) result(value)
 
-  character(len=128) :: value
+  character(len=1024) :: value
   character(len=*), intent(in) :: cname
   integer, intent(inout) :: iarg
 
@@ -1350,7 +1351,7 @@ subroutine get_command_line_arguments(nsmax, cgrid, iters, iters_warmup, nfld, n
                                             ! 1: pspvor, pspdiv, pspscalar, pgp
                                             ! 2: pspvor, pspdiv, pspsc3a, pspsc2, pgpuv, pgp3a, pgp2
 
-  character(len=128), intent(inout) :: cchecksums_path ! path to export checksum files
+  character(len=1024), intent(inout) :: cchecksums_path ! path to export checksum files
   logical, intent(inout) :: lalloperm                  ! keep FOUBUF & FOUBUF_IN allocated
   character(len=128) :: carg          ! Storage variable for command line arguments
   integer            :: iarg          ! Argument index
@@ -1564,26 +1565,36 @@ end subroutine dump_gridpoint_field
 
 !===================================================================================================
 
-subroutine open_dump_checksums_file(filename, noutdump, jstep)
+subroutine open_dump_checksums_file(filename, noutdump, jstep, append_checksums)
 
   character(len=*),   intent(in) :: filename
   integer(kind=jpim), intent(in) :: noutdump ! unit number for output file
   integer(kind=jpim), intent(in) :: jstep
+  logical, intent(in), optional :: append_checksums
   logical :: exist
+  logical :: append
+  integer(kind=jpim), save :: last_header_jstep = -1
 
+  append = .false.
+  if (present(append_checksums)) append = append_checksums
+  if (jstep > 1) append = .true.
   exist = .false.
-  if (jstep > 1) inquire(file=trim(filename), exist=exist)
+  if (append) inquire(file=trim(filename), exist=exist)
   if (exist) then
     write(nout,*) "re-opening ",  trim(filename), noutdump
     open(noutdump, file=trim(filename), status="old", position="append", action="write")
   else
     write(nout,*) "opening ",  trim(filename), noutdump
     open(noutdump, file=trim(filename), action="write")
+    last_header_jstep = -1
   endif
 
-  write(noutdump,'(a)')     "# --------------------------------------------"
-  write(noutdump,'(a, i0)') "# Iteration ", jstep
-  write(noutdump,'(a)')     "# --------------------------------------------"
+  if (jstep /= last_header_jstep) then
+    write(noutdump,'(a)')     "# --------------------------------------------"
+    write(noutdump,'(a, i0)') "# Iteration ", jstep
+    write(noutdump,'(a)')     "# --------------------------------------------"
+    last_header_jstep = jstep
+  endif
 
 end subroutine open_dump_checksums_file
 
@@ -1695,7 +1706,7 @@ end subroutine dump_checksums_pgp_uv_3a_2
 subroutine dump_checksums_psp(filename, noutdump,       &
                         & jstep, myproc,  nspec2g,      &
                         & ivset, ivsetsc,               &
-                        & zspvor, zspdiv, zspscalar)
+                        & zspvor, zspdiv, zspscalar, append_checksums)
   character(len=*),   intent(in) :: filename
   integer(kind=jpim), intent(in) :: noutdump ! unit number for output file
   integer(kind=jpim), intent(in) :: jstep    ! time step
@@ -1706,12 +1717,13 @@ subroutine dump_checksums_psp(filename, noutdump,       &
   real(kind=jprb), intent(in) :: zspvor(:,:)
   real(kind=jprb), intent(in) :: zspdiv(:,:)
   real(kind=jprb), intent(in) :: zspscalar(:,:)
+  logical, intent(in), optional :: append_checksums
   integer(kind=jpim) :: numfld, numscfld, nlev_checksum, jfld, ifirst, ilast
   real(kind=jprb), allocatable :: gspfld(:,:)
   character(len=4) :: checksum_hex
 
   if (myproc == 1) then
-    call open_dump_checksums_file(filename, noutdump, jstep)
+    call open_dump_checksums_file(filename, noutdump, jstep, append_checksums)
     allocate(gspfld(max(size(ivset), size(ivsetsc)), nspec2g))
   endif
 
@@ -1766,7 +1778,7 @@ subroutine dump_checksums_psp_3a_2(filename, noutdump,  &
                         & jstep, myproc, nspec2g, &
                         & ivset, ivsetsc2,              &
                         & zspvor, zspdiv,               &
-                        & zspsc3a, zspsc2)
+                        & zspsc3a, zspsc2, append_checksums)
   character(len=*),   intent(in) :: filename
   integer(kind=jpim), intent(in) :: noutdump ! unit number for output file
   integer(kind=jpim), intent(in) :: jstep    ! time step
@@ -1778,13 +1790,14 @@ subroutine dump_checksums_psp_3a_2(filename, noutdump,  &
   real(kind=jprb), intent(in) :: zspdiv(:,:)
   real(kind=jprb), intent(in) :: zspsc3a(:,:,:)
   real(kind=jprb), intent(in) :: zspsc2(:,:)
+  logical, intent(in), optional :: append_checksums
 
   integer(kind=jpim) :: numfld, jfld
   real(kind=jprb), allocatable :: gspfld(:,:)
   character(len=4) :: checksum_hex
 
   if (myproc == 1) then
-    call open_dump_checksums_file(filename, noutdump, jstep)
+    call open_dump_checksums_file(filename, noutdump, jstep, append_checksums)
     allocate(gspfld(max(size(ivset), 1), nspec2g)) ! size(ivsetsc2) is always 1
   endif
 
