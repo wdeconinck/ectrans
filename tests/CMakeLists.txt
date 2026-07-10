@@ -128,6 +128,10 @@ foreach( benchmark ${benchmarks} )
     ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt0 )
     ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20 ${reference_name} )
 
+    ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt0 )
+    set( reference_name ${reference_name}_npromatr20 )
+    ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_npromatr20 ${reference_name} )
+
     ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders1 uvders1 vordiv0 flt0 )
     ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_derivatives ${reference_name} )
 
@@ -272,6 +276,7 @@ foreach( benchmark ${benchmarks} )
           )
           ectrans_set_test_properties( ${base_title}_nfld10_nlev20_npromatr20 )
           ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders0 uvders0 vordiv0 flt0 )
+          set( reference_name ${reference_name}_npromatr20 )
           ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_npromatr20 ${reference_name} )
         endif()
 

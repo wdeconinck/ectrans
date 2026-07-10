@@ -736,7 +736,7 @@ do jstep = 1, iters+iters_warmup
       zgp2 (iend+1:, :, ngpblks) = 0
       call dump_checksums_pgp_uv_3a_2(filename=checksums_filename, noutdump=noutdump_checksum, &
                                     & jstep=jstep, myproc=myproc, nproma=nproma, ngptotg=ngptotg, &
-                                    & zgpuv=zgpuv, zgp3a=zgp3a, zgp2=zgp2)
+                                    & lscders=lscders, luvder=luvder, zgpuv=zgpuv, zgp3a=zgp3a, zgp2=zgp2)
     endif
   endif
 
@@ -1640,8 +1640,8 @@ end subroutine dump_checksums_pgp
 !===================================================================================================
 
 subroutine dump_checksums_pgp_uv_3a_2(filename, noutdump,                      &
-                        & jstep, myproc, nproma, ngptotg, &
-                        &  zgpuv, zgp3a, zgp2)
+                        & jstep, myproc, nproma, ngptotg, lscders, luvder, &
+                        & zgpuv, zgp3a, zgp2)
 
   character(len=*),   intent(in) :: filename
   integer(kind=jpim), intent(in) :: noutdump ! unit number for output file
@@ -1649,11 +1649,14 @@ subroutine dump_checksums_pgp_uv_3a_2(filename, noutdump,                      &
   integer(kind=jpim), intent(in) :: myproc   ! mpi rank
   integer(kind=jpim), intent(in) :: nproma   ! size of nproma
   integer(kind=jpim), intent(in) :: ngptotg
+  logical, intent(in) :: lscders
+  logical, intent(in) :: luvder
   real(kind=jprb), intent(in) :: zgpuv(:,:,:,:)
   real(kind=jprb), intent(in) :: zgp3a(:,:,:,:)
   real(kind=jprb), intent(in) :: zgp2(:,:,:)
 
   integer(kind=jpim) :: jlev, jfld
+  integer(kind=jpim) :: base_uv_fields, base_3d_scalar_fields, base_2d_scalar_fields
   real(kind=jprb), allocatable :: gfld(:,:)
   character(len=4) :: checksum_hex
 
@@ -1662,7 +1665,16 @@ subroutine dump_checksums_pgp_uv_3a_2(filename, noutdump,                      &
     allocate(gfld(ngptotg,1))
   endif
 
-  do jfld = 1, size(zgpuv, 3)
+  base_uv_fields = size(zgpuv, 3)
+  if (luvder) base_uv_fields = base_uv_fields - 2
+  base_3d_scalar_fields = size(zgp3a, 3)
+  base_2d_scalar_fields = size(zgp2, 2)
+  if (lscders) then
+    base_3d_scalar_fields = base_3d_scalar_fields / 3
+    base_2d_scalar_fields = base_2d_scalar_fields / 3
+  endif
+
+  do jfld = 1, base_uv_fields
     do jlev = 1, size(zgpuv, 2)
       call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
         &            pgp=zgpuv(:,jlev:jlev,jfld,:))
@@ -1673,7 +1685,7 @@ subroutine dump_checksums_pgp_uv_3a_2(filename, noutdump,                      &
     enddo
   enddo
 
-  do jfld = 1, size(zgp3a, 3)
+  do jfld = 1, base_3d_scalar_fields
     do jlev = 1, size(zgp3a, 2)
       call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
         &            pgp=zgp3a(:,jlev:jlev,jfld,:))
@@ -1684,7 +1696,7 @@ subroutine dump_checksums_pgp_uv_3a_2(filename, noutdump,                      &
     enddo
   enddo
 
-  do jfld = 1, size(zgp2, 2)
+  do jfld = 1, base_2d_scalar_fields
     call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
       &            pgp=zgp2(:,jfld:jfld,:))
     if (myproc == 1) then
@@ -1692,6 +1704,63 @@ subroutine dump_checksums_pgp_uv_3a_2(filename, noutdump,                      &
       write(noutdump, '(a," # ",a," (",i0,")")') checksum_hex, "zgp2", jfld
     endif
   enddo
+
+  if (lscders) then
+    do jfld = base_3d_scalar_fields + 1, 2 * base_3d_scalar_fields
+      do jlev = 1, size(zgp3a, 2)
+        call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
+          &            pgp=zgp3a(:,jlev:jlev,jfld,:))
+        if (myproc == 1) then
+          checksum_hex = fletcher16_hex(gfld(:,:))
+          write(noutdump, '(a," # ",a," (",i0,", ",i0,")")') checksum_hex, "zgp3a", jlev, jfld
+        endif
+      enddo
+    enddo
+
+    do jfld = base_2d_scalar_fields + 1, 2 * base_2d_scalar_fields
+      call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
+        &            pgp=zgp2(:,jfld:jfld,:))
+      if (myproc == 1) then
+        checksum_hex = fletcher16_hex(gfld(:,:))
+        write(noutdump, '(a," # ",a," (",i0,")")') checksum_hex, "zgp2", jfld
+      endif
+    enddo
+  endif
+
+  if (luvder) then
+    do jfld = base_uv_fields + 1, size(zgpuv, 3)
+      do jlev = 1, size(zgpuv, 2)
+        call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
+          &            pgp=zgpuv(:,jlev:jlev,jfld,:))
+        if (myproc == 1) then
+          checksum_hex = fletcher16_hex(gfld(:,:))
+          write(noutdump, '(a," # ",a," (",i0,", ",i0,")")') checksum_hex, "zgpuv", jlev, jfld
+        endif
+      enddo
+    enddo
+  endif
+
+  if (lscders) then
+    do jfld = 2 * base_3d_scalar_fields + 1, 3 * base_3d_scalar_fields
+      do jlev = 1, size(zgp3a, 2)
+        call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
+          &            pgp=zgp3a(:,jlev:jlev,jfld,:))
+        if (myproc == 1) then
+          checksum_hex = fletcher16_hex(gfld(:,:))
+          write(noutdump, '(a," # ",a," (",i0,", ",i0,")")') checksum_hex, "zgp3a", jlev, jfld
+        endif
+      enddo
+    enddo
+
+    do jfld = 2 * base_2d_scalar_fields + 1, 3 * base_2d_scalar_fields
+      call gath_grid(pgpg=gfld, kproma=nproma, kfgathg=1, kto=(/1/), kresol=1, &
+        &            pgp=zgp2(:,jfld:jfld,:))
+      if (myproc == 1) then
+        checksum_hex = fletcher16_hex(gfld(:,:))
+        write(noutdump, '(a," # ",a," (",i0,")")') checksum_hex, "zgp2", jfld
+      endif
+    enddo
+  endif
 
   if (myproc == 1) then
     write(nout,*) "close ", noutdump
