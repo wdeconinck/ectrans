@@ -198,8 +198,13 @@ ecbuild_add_option( FEATURE FIELD_API
 ecbuild_add_option( FEATURE REFERENCE_TESTS DEFAULT OFF
                     DESCRIPTION "Compare each ectrans-benchmark checksum file against references" )
 
+ecbuild_add_option( FEATURE LOCAL_REFERENCE_TESTS DEFAULT ON
+                    DESCRIPTION "Compare each ectrans-benchmark checksum file against build-local references"
+                    CONDITION HAVE_REFERENCE_TESTS )
+
+string( SUBSTRING "${ectrans_GIT_SHA1}" 0 8 ectrans_GIT_SHA1_SHORT )
 set( ECTRANS_TEST_REFERENCE_DIR
-     "${CMAKE_CURRENT_SOURCE_DIR}/tests/references/v${ectrans_VERSION_STR}-${ectrans_GIT_SHA1}"
+  "${CMAKE_CURRENT_SOURCE_DIR}/tests/references/v${ectrans_VERSION_STR}-${ectrans_GIT_SHA1_SHORT}"
      CACHE PATH "Directory containing ectrans-benchmark checksum reference files" FORCE )
 if (HAVE_REFERENCE_TESTS)
   ecbuild_info("Reference tests requested, using reference directory: ${ECTRANS_TEST_REFERENCE_DIR}")

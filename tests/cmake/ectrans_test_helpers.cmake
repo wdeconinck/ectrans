@@ -34,7 +34,7 @@ endfunction()
 # CTest runs. The checksum file prefix basename must match the CTest target that
 # generates it.
 function(ectrans_add_local_reference_file test_prefix reference_name)
-  if( NOT HAVE_REFERENCE_TESTS )
+  if( NOT HAVE_REFERENCE_TESTS OR NOT HAVE_LOCAL_REFERENCE_TESTS )
     return()
   endif()
 
@@ -89,7 +89,7 @@ function(ectrans_add_checksum_reference_tests target reference_name)
     SKIP_RETURN_CODE 77 )
 
   get_property( has_local_reference GLOBAL PROPERTY "${local_reference_property}_SOURCE_TARGET" SET )
-  if( has_local_reference )
+  if( HAVE_LOCAL_REFERENCE_TESTS AND has_local_reference )
     get_property( local_reference_source_target GLOBAL PROPERTY "${local_reference_property}_SOURCE_TARGET" )
     get_property( local_reference_source_fixture GLOBAL PROPERTY "${local_reference_property}_SOURCE_FIXTURE" )
     ecbuild_add_test( TARGET ${local_reference_diff_target}
