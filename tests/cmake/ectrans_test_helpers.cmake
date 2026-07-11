@@ -34,7 +34,7 @@ endfunction()
 # CTest runs. The checksum file prefix basename must match the CTest target that
 # generates it.
 function(ectrans_add_local_reference_file test_prefix reference_name)
-  if( NOT HAVE_REFERENCE_TESTS OR NOT HAVE_LOCAL_REFERENCE_TESTS )
+  if( NOT HAVE_LOCAL_REFERENCE_TESTS )
     return()
   endif()
 
@@ -60,13 +60,13 @@ endfunction()
 
 # Add checksum comparison tests for one benchmark-producing CTest target.
 # Use this immediately after defining a benchmark test that writes
-# ${checksums_dir}/${target}.checksums. It always adds the external-reference
-# diff test, and adds a local-reference diff test when
-# ectrans_add_local_reference_file() registered a source for the same reference
-# name. Fixtures make filtered CTest invocations run the checksum-producing
-# prerequisites before the diff tests.
+# ${checksums_dir}/${target}.checksums. It adds the external-reference diff test
+# when HAVE_REFERENCE_TESTS is enabled, and adds a local-reference diff test when
+# HAVE_LOCAL_REFERENCE_TESTS is enabled and ectrans_add_local_reference_file()
+# registered a source for the same reference name. Fixtures make filtered CTest
+# invocations run the checksum-producing prerequisites before the diff tests.
 function(ectrans_add_checksum_reference_tests target reference_name)
-  if( NOT HAVE_REFERENCE_TESTS )
+  if( NOT HAVE_REFERENCE_TESTS AND NOT HAVE_LOCAL_REFERENCE_TESTS )
     return()
   endif()
 
@@ -78,15 +78,17 @@ function(ectrans_add_checksum_reference_tests target reference_name)
   ectrans_test_fixture_name( target_fixture checksum_file ${target} )
   ectrans_local_reference_property_name( local_reference_property ${reference_name} )
 
-  ecbuild_add_test( TARGET ${reference_diff_target}
-    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/ectrans-diff.py"
-    ARGS "${reference_file}" "${checksum_file}" -U 0
-  )
-  set_tests_properties( ${reference_diff_target} PROPERTIES
-    DEPENDS ${target}
-    FIXTURES_REQUIRED ${target_fixture}
-    LABELS reference_test
-    SKIP_RETURN_CODE 77 )
+  if( HAVE_REFERENCE_TESTS )
+    ecbuild_add_test( TARGET ${reference_diff_target}
+      COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/ectrans-diff.py"
+      ARGS "${reference_file}" "${checksum_file}" -U 0
+    )
+    set_tests_properties( ${reference_diff_target} PROPERTIES
+      DEPENDS ${target}
+      FIXTURES_REQUIRED ${target_fixture}
+      LABELS reference_test
+      SKIP_RETURN_CODE 77 )
+  endif()
 
   get_property( has_local_reference GLOBAL PROPERTY "${local_reference_property}_SOURCE_TARGET" SET )
   if( HAVE_LOCAL_REFERENCE_TESTS AND has_local_reference )
