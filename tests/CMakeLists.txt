@@ -141,11 +141,6 @@ foreach( benchmark ${benchmarks} )
     ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders0 uvders0 vordiv0 flt1 )
     ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_flt ${reference_name} )
 
-    if( HAVE_FIELD_API )
-      set( source_prefix "${checksums_dir}/${benchmark}_T47_O48_mpi0_omp1_callmode1_field_api" )
-      ectrans_checksum_reference_name( reference_name ${benchmark} T47 O48 nfld10 nlev20 niter2 scders1 uvders0 vordiv0 flt0 )
-      ectrans_add_local_reference_file( ${source_prefix}_nfld10_nlev20_derivatives ${reference_name} )
-    endif()
   endif()
 
   # Establish which task/thread parameters to test
@@ -350,15 +345,15 @@ foreach( benchmark ${benchmarks} )
         ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20 ${reference_name} )
 
         #----
-        # Check it works with 10 3D scalar fields, 20 levels, and scalar derivatives
+        # Check it works with 10 3D scalar fields, 20 levels, and derivatives
         ecbuild_add_test( TARGET ${base_title}_nfld10_nlev20_derivatives
             COMMAND ${benchmark}
-          ARGS ${base_args} --nfld 10 --nlev 20 --scders --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_derivatives
+          ARGS ${base_args} --nfld 10 --nlev 20 --scders --uvders --check 100 --dump-checksums ${checksums_dir}/${base_title}_nfld10_nlev20_derivatives
             MPI ${mpi}
             OMP ${omp}
         )
         ectrans_set_test_properties( ${base_title}_nfld10_nlev20_derivatives )
-        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders1 uvders0 vordiv0 flt0 )
+        ectrans_checksum_reference_name( reference_name ${benchmark} T${t} ${grid} nfld10 nlev20 niter${niter} scders1 uvders1 vordiv0 flt0 )
         ectrans_add_checksum_reference_tests( ${base_title}_nfld10_nlev20_derivatives ${reference_name} )
 
         #----
