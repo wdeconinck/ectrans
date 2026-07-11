@@ -199,8 +199,7 @@ ecbuild_add_option( FEATURE REFERENCE_TESTS DEFAULT OFF
                     DESCRIPTION "Compare each ectrans-benchmark checksum file against references" )
 
 ecbuild_add_option( FEATURE LOCAL_REFERENCE_TESTS DEFAULT ON
-                    DESCRIPTION "Compare each ectrans-benchmark checksum file against build-local references"
-                    CONDITION HAVE_REFERENCE_TESTS )
+                    DESCRIPTION "Compare each ectrans-benchmark checksum file against build-local references" )
 
 string( SUBSTRING "${ectrans_GIT_SHA1}" 0 8 ectrans_GIT_SHA1_SHORT )
 set( ECTRANS_TEST_REFERENCE_DIR

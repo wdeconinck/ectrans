@@ -45,19 +45,21 @@ def compare_checksums(folder_path, ntasks, nthreads, excludes=[]):
         if os.path.isfile(file_name):
             print(f"{file_name}")
             found = False
+            compared_files = set()
             for method in ["","_field_api"]:
                 for mpi in ntasks:
                     for omp in nthreads:
                         other_file_name = file_name.replace("mpi0_omp1", f"mpi{mpi}_omp{omp}")
                         other_file_name = other_file_name.replace("field_api_nfld", "nfld")
                         other_file_name = other_file_name.replace("_nfld", f"{method}_nfld")
-                        
-                        if other_file_name == file_name:
+
+                        if other_file_name == file_name or other_file_name in compared_files:
                             continue
                         if os.path.isfile(other_file_name):
+                            compared_files.add(other_file_name)
                             total_count += 1
                             found = True
-                            if (filecmp.cmp(file_name, other_file_name)):
+                            if (filecmp.cmp(file_name, other_file_name, shallow=False)):
                                 print(f"    {other_file_name} ...{colors.SUCCESS}Passed{colors.ENDC}")
                                 success_count += 1
                             else:
